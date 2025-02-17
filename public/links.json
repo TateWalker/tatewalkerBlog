@@ -1,4 +1,7 @@
 {
+  "profiles": {
+    "github": "https://github.com/TateWalker"
+  },
   "friends": [
     {
       "id_name": "cf-links",

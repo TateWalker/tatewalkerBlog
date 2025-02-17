@@ -4,7 +4,7 @@ publishDate: 2024-07-27
 description: 'astro-theme-pure Personalized Customization Guide'
 tags:
   - Waline
-  - Vercel
+  - Netlify
   - Supabase
 heroImage: { src: './thumbnail.jpg', color: '#64574D' }
 language: 'English'

@@ -6,8 +6,8 @@
 # Ignore content collection generated files
 .astro
 
-### Vercel ###
-.vercel
+### Netlify ###
+.netlify
 
 ### Vim ###
 # Swap

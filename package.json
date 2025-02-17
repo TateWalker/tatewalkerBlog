@@ -15,12 +15,12 @@
     "format": "prettier --write  '**/*.{js,jsx,ts,tsx,md,mdx,astro}'",
     "lint": "eslint --fix 'src/**/*.{js,ts,jsx,tsx,astro}'",
     "yijiansilian": "bun lint && bun sync && bun check && bun format",
-    "clean": "rm -rf .astro .vercel dist"
+    "clean": "rm -rf .astro .netlify dist"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
+    "@astrojs/netlify": "^6.2.0",
     "@astrojs/rss": "^4.0.11",
-    "@astrojs/vercel": "^8.0.3",
     "@playform/compress": "^0.1.7",
     "@unocss/reset": "^65.4.3",
     "@waline/client": "^3.5.1",
