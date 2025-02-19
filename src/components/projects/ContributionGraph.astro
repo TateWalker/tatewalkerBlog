@@ -1,0 +1,239 @@
+---
+interface Props {
+  username: string;
+}
+
+const { username } = Astro.props;
+
+async function getGitHubContributions(username: string) {
+  try {
+    const response = await fetch(`https://github-contributions-api.jogruber.de/v4/${username}`);
+    const data = await response.json();
+    
+    // Calculate date range for exactly 52 weeks, shifted one month forward
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setMonth(startDate.getMonth() - 1); // First shift back one month
+    startDate.setDate(startDate.getDate() - (52 * 7 - 1)); // Then calculate 52 weeks
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+    
+    // Create array of all dates in the range
+    const allDates = [];
+    const currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      const existingContribution = data.contributions.find((day: any) => day.date === dateStr);
+      
+      allDates.push({
+        date: dateStr,
+        count: existingContribution ? existingContribution.count : 0
+      });
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Filter the API data to only include contributions within our date range
+    const filteredApiData = data.contributions.filter((contribution: any) => {
+      const contributionDate = new Date(contribution.date);
+      contributionDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
+      return contributionDate >= startDate && contributionDate <= endDate;
+    });
+    
+    // Add colors
+    const coloredContributions = allDates.map((day: any) => ({
+      ...day,
+      color: day.count === 0 ? '#161b22' :
+             day.count <= 3 ? '#006d32' :
+             day.count <= 6 ? '#26a641' :
+             day.count <= 9 ? '#39d353' : '#0e4429'
+    }));
+
+    // Group by weeks
+    const weeks = [];
+    let currentWeek = [];
+    
+    for (const day of coloredContributions) {
+      const date = new Date(day.date);
+      if (date.getDay() === 0 && currentWeek.length > 0) {
+        weeks.push(currentWeek);
+        currentWeek = [day]; // Start new week with Sunday
+      } else if (date.getDay() === 0) { // First Sunday
+        currentWeek = [day];
+      } else {
+        currentWeek.push(day);
+      }
+    }
+    if (currentWeek.length > 0) {
+      weeks.push(currentWeek);
+    }
+
+    return { contributions: coloredContributions, weeks };
+  } catch (error) {
+    console.error('Error fetching GitHub contributions:', error);
+    return null;
+  }
+}
+
+// Modify the getMonthLabels function
+function getMonthLabels(weeks: any[]) {
+  const months = new Set<string>();
+  
+  // Get first day of each week to determine month boundaries
+  weeks.forEach(week => {
+    if (week.length > 0) {
+      const date = new Date(week[0].date);
+      date.setMonth(date.getMonth() + 1);
+      const monthLabel = date.toLocaleString('en-US', { 
+        month: 'short',
+        year: 'numeric'
+      });
+      months.add(monthLabel);
+    }
+  });
+
+  return Array.from(months)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+    .map(monthYear => monthYear.split(' ')[0]) // Keep only month name
+    .slice(0, -1); // Remove the last month
+}
+
+const data = await getGitHubContributions(username);
+const monthLabels = data ? getMonthLabels(data.weeks) : [];
+---
+
+<div class="github-contributions">
+  <div class="graph-with-labels">
+    <div class="day-labels">
+      <span></span>
+      <span>Mon</span>
+      <span>Wed</span>
+      <span>Fri</span>
+      <span></span>
+    </div>
+    
+    <div class="graph-container">
+      <div class="month-labels">
+        {monthLabels.map((month) => (
+          <span>{month}</span>
+        ))}
+      </div>
+      
+      {data ? (
+        <div class="contribution-graph">
+          {data.weeks.map((week: any) => (
+            <div class="contribution-week">
+              {(() => {
+                // Move Sunday (last day) to the top if it exists
+                const weekCopy = [...week];
+                if (weekCopy.length === 7) {
+                  const sunday = weekCopy.pop(); // Remove Sunday from the end
+                  weekCopy.unshift(sunday); // Add it to the beginning
+                }
+                return weekCopy.map((day: any) => {
+                  const date = new Date(day.date);
+                  const formattedDate = date.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  });
+                  return (
+                    <div 
+                      class="contribution-day" 
+                      title={`${formattedDate}: ${day.count} contributions`}
+                      style={`background-color: ${day.color}`}
+                      data-count={day.count}
+                      data-date={day.date}
+                    />
+                  );
+                });
+              })()}
+            </div>
+          ))}
+        </div>
+      ) : (<p>Unable to load GitHub contributions</p>)}
+    </div>
+  </div>
+</div>
+
+<style>
+  .github-contributions {
+    margin: 1rem 0;
+    width: 100%;
+  }
+
+  .contribution-graph {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    min-height: 120px;
+    width: 100%;
+    padding: 0;
+  }
+
+  .contribution-week {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .contribution-day {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+    border: 1px solid rgba(27, 31, 35, 0.06);
+  }
+
+  .contribution-day:hover {
+    opacity: 0.8;
+    cursor: pointer;
+  }
+
+  .graph-with-labels {
+    display: flex;
+    gap: 4px;
+  }
+
+  .day-labels {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 8px 8px 0;
+    color: #fff;
+    font-size: 14px;
+    height: 120px;
+    gap: 13px;
+  }
+
+  .day-labels span {
+    height: 10px;
+    line-height: 10px;
+    font-size: 10px;
+  }
+
+  .month-labels {
+    position: absolute;
+    display: flex;
+    width: 100%;
+    color: #fff;
+    font-size: 12px;
+    top: 0;
+    padding-left: 14px; /* Add padding to align with first column */
+  }
+
+  .month-labels span {
+    width: 60px; /* Fixed width for each month label */
+    text-align: left;
+  }
+
+  .graph-container {
+    flex: 1;
+    position: relative;
+    padding-top: 20px;
+    overflow-x: hidden;
+  }
+</style> 
