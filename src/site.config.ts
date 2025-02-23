@@ -123,7 +123,7 @@ export const integ: IntegrationUserConfig = {
   waline: {
     enable: true,
     // Server service link
-    server: 'https://astro-theme-pure-waline.arthals.ink/',
+    server: 'https://waline-tatewalekr.netlify.app/',
     // Refer https://waline.js.org/en/guide/features/emoji.html
     emoji: ['bmoji', 'weibo'],
     // Refer https://waline.js.org/en/reference/client/props.html
@@ -133,7 +133,7 @@ export const integ: IntegrationUserConfig = {
       comment: true,
       locale: {
         reaction0: 'Like',
-        placeholder: 'Welcome to comment. (Email to receive replies. Login is unnecessary)'
+        placeholder: 'Leave a comment! (Add email to receive replies. Login is unnecessary)'
       },
       imageUploader: false
     }
