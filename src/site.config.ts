@@ -123,7 +123,7 @@ export const integ: IntegrationUserConfig = {
   waline: {
     enable: true,
     // Server service link
-    server: 'https://waline-5qs6axhcd-jeffs-projects-7d39acfc.vercel.app',
+    server: 'https://waline.tatewalker.com',
     // Refer https://waline.js.org/en/guide/features/emoji.html
     emoji: ['bmoji', 'weibo'],
     // Refer https://waline.js.org/en/reference/client/props.html
