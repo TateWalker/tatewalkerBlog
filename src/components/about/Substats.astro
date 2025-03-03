@@ -1,11 +1,11 @@
 ---
-import { socialLinks, type iconsType } from 'astro-pure/types'
+import { socialLinks, type iconsType } from '@/types'
 
 import Icon from './Icon.astro'
 
 interface SubstatsItem {
   platform: string
-  icon: (typeof socialLinks | 'linkedin')[number]
+  icon: (typeof socialLinks)[number]
   color?: string
   link?: string
   text: string
