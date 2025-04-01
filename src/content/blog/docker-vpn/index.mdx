@@ -13,6 +13,180 @@ import { Aside } from 'astro-pure/user'
 
 Want to keep your Docker traffic private? Gluetun is a Docker container that routes all your traffic through a VPN. This guide will show you how to set up Gluetun and configure your Docker containers to use it.
 
-## Use cases
+<Aside>This is Part 1 of a series on an automated media server. Check out the other parts: </Aside>
+> [Part 2: QBittorrent Docker Container](/blog/docker-torrent)
 
-Gluetun is useful for a variety of scenarios:
+> [Part 3: *arr](/blog/docker-*arr)
+
+> [Part 4](/blog/docker-plex)
+
+> [Part 5](/blog/docker-overseer).
+
+## Use cases
+1. Centralized VPN client that other containers can use. This allows multiple applications to share the same VPN connection.
+2. Route container traffic through a specific VPN you already trust.
+3. Leech and seed torrents privately, hiding your real IP address.
+4. Kill switch for your container traffic if the VPN connection drops.
+
+## Installation
+
+We'll be using Docker Compose to set up Gluetun. If you don't have Docker installed, you'll need to follow the [official instructions](https://docs.docker.com/engine/) on their site.
+Let's create a new directory called `mediaStack` and create a `docker-compose.yml` file inside.
+
+```yaml
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    restart: always
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "8888:8888/tcp"                         # Gluetun Local Network HTTP proxy
+      - ${GLUETUN_CONTROL_PORT:?err}:${GLUETUN_CONTROL_PORT:?err} # Gluetun Status Port
+    volumes:
+      - ${FOLDER_FOR_DATA:?err}/gluetun:/gluetun
+      - ${FOLDER_FOR_DATA:?err}/gluetun/temp:/tmp/gluetun
+    environment:
+      - TZ=${TIMEZONE:?err}
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:?err}
+      - HTTP_CONTROL_SERVER_ADDRESS=:${GLUETUN_CONTROL_PORT:?err}
+      - VPN_TYPE=${VPN_TYPE}
+      - WIREGUARD_ENDPOINT_IP=${WIREGUARD_ENDPOINT_IP}
+      - WIREGUARD_ENDPOINT_PORT=${WIREGUARD_ENDPOINT_PORT}
+      - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
+      - VPN_PORT_FORWARDING=${VPN_PORT_FORWARDING}
+      - VPN_PORT_FORWARDING_PROVIDER=${VPN_PORT_FORWARDING_PROVIDER}
+      - HTTPPROXY=on
+    networks:
+      - gluetun`
+
+networks:
+  gluetun:
+    name: gluetun
+    driver: bridge
+```
+
+Let's break down each section:
+
+### services
+Here we're defining our Gluetun container. We'll add our other containers here later.
+
+### gluetun
+The service we're creating.
+
+#### image
+The Docker image to use. In this case, we're using the latest version of Gluetun.
+
+#### container_name
+The name of the container. This is how we'll refer to it in the rest of our Docker Compose file.
+
+#### restart
+This tells Docker to always restart the container if it stops. This is useful for a VPN container, as we want it to always be running.
+
+#### cap_add
+This gives the container the `NET_ADMIN` capability, which is required for VPNs to work.
+
+#### devices
+This mounts the TUN device inside the container. This is required for VPNs to work.
+
+#### ports
+This maps the ports on the host to the ports on the container.
+The first port is for the Gluetun local network HTTP proxy, and the second port is for the Gluetun status page.
+Later, this is where we'll add the ports for any other containers we want to use with Gluetun.
+
+#### volumes
+This mounts the data folder inside the container. The `temp` folder is used for temporary files.
+The `proton.conf` file is where we'll put our VPN configuration we download from ProtonVPN or whoever you use. The `${FOLDER_FOR_DATA}` variable is where we'll store our data. You can set this to any folder you want. If it already exists, make sure it's writable by the user running Docker, otherwise just let Docker create it itself.
+
+#### environment
+This is where we set the environment variables for Gluetun. These are required for the container to work properly.
+
+#### networks
+Here we define the network that the container will use. In this case, we're using a bridge network called `gluetun`. This allows us to connect other containers to the same network and route their traffic through Gluetun.
+
+## VPN Configuration
+
+Here we'll download our VPN configuration file to use with Gluetun. For this example, I'll be using ProtonVPN over WireGuard, but you can use any VPN provider that supports OpenVPN or WireGuard.
+If you don't already have an account, you can start one for free [here](https://protonvpn.com/).
+
+Once you have an account, log in and go to the [VPN downloads page](https://account.protonvpn.com/downloads#wireguard-configuration).
+Scroll down until you reach the WireGuard configuration header.
+1. Create a name for your configuration file. This will be the name of the file you download. Pick anything you'd like.
+2. Select your platform. In this case, select GNU/Linux.
+3. Select your VPN options. We'll select "Block malware, ads and trackers" from the dropdown, and toggle on the NAT-PMP (Port Forwarding) and VPN Accelerator options.
+4. You can either have Proton determine the best server for you based on location, or scoll down and select one you like. When you're ready to download, click the "Create" button.
+
+<Aside type='tip'> If you'll be using Gluetun to protect your torrent activity, make sure to select a server that allows P2P traffic. </Aside>
+
+If you've been following correctly, your downloaded conf file should be similar to this:
+```bash
+[Interface]
+# Key for MediaStack
+# Bouncing = 3
+# NetShield = 2
+# Moderate NAT = off
+# NAT-PMP (Port Forwarding) = off
+# VPN Accelerator = on
+PrivateKey = YOUR PRIVATE KEY HERE
+Address = 10.2.0.2/32
+DNS = 10.2.0.1
+
+[Peer]
+# US-GA#296
+PublicKey = IV0rNO3lSM0n0yEbCUtEwFnO0vPUbUNurIFnO6AxRhI=
+AllowedIPs = 0.0.0.0/0
+Endpoint = 45.134.140.59:51820
+```
+
+We're now ready to use this configuration file with Gluetun. Move the downloaded file to the `mediaStack` data directory for safe keeping (I recommend `/mediaStack/data/gluetun`) and rename it to `proton.conf`.
+
+## Environment File
+
+In the same directory as your `docker-compose.yml` file, create a new file called `.env`. This file will contain all the environment variables we need to set for our Gluetun container. Here's an example of what it should look like:
+```bash
+TIMEZONE=America/Chicago
+FOLDER_FOR_DATA=./data
+
+# Gluetun
+GLUETUN_CONTROL_PORT=8005
+VPN_SERVICE_PROVIDER=custom
+VPN_TYPE=wireguard
+WIREGUARD_ENDPOINT_IP=45.134.140.59
+WIREGUARD_ENDPOINT_PORT=51820
+WIREGUARD_PUBLIC_KEY=IV0rNO3lSM0n0yEbCUtEwFnO0vPUbUNurIFnO6AxRhI=
+WIREGUARD_PRIVATE_KEY=YOUR PRIVATE KEY HERE
+WIREGUARD_ADDRESSES=10.2.0.2/24
+VPN_PORT_FORWARDING=on
+VPN_PORT_FORWARDING_PROVIDER=protonvpn
+```
+Use the values from the configuration file you downloaded earlier. The `VPN_PORT_FORWARDING` variable is set to `on` to enable port forwarding for your torrents. The `VPN_PORT_FORWARDING_PROVIDER` variable is set to `protonvpn` to use ProtonVPN's port forwarding service.
+
+## Start Gluetun
+
+Now that we have our configuration files set up, we can start Gluetun. In the same directory as your `docker-compose.yml` file, run the following command:
+```bash
+docker compose up -d
+```
+
+This will start the Gluetun container in detached mode. You can check the logs to see if everything is working correctly by running:
+```bash
+docker logs -f gluetun
+```
+
+## Test the VPN
+
+To test if the VPN is working correctly, you can use the following command:
+
+```bash
+docker run --rm --network=container:gluetun alpine:3.20 sh -c "apk add wget && wget -qO- https://ipinfo.io"
+```
+This will show you the IP address that Gluetun is using. If everything is working correctly, it should be different from your real IP address.
+
+## Conclusion
+
+Now that we have Gluetun set up and running, we can start adding other containers to our Docker Compose file and route their traffic through Gluetun. In the [next part](/blog/docker-torrent) of this series, we'll be setting up a torrent client and configuring it to use Gluetun as its VPN.
