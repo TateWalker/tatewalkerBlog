@@ -5,6 +5,7 @@ publishDate: 2025-02-28 01:10:45
 tags: 
     - docker
     - privacy
+    - media server
 language: 'English'
 heroImage: { src: './gluetun-hero.jpg', color: '#2E2E2E' }
 ---
@@ -14,13 +15,13 @@ import { Aside } from 'astro-pure/user'
 Want to keep your Docker traffic private? Gluetun is a Docker container that routes all your traffic through a VPN. This guide will show you how to set up Gluetun and configure your Docker containers to use it.
 
 <Aside>This is Part 1 of a series on an automated media server. Check out the other parts: </Aside>
-> [Part 2: QBittorrent Docker Container](/blog/docker-torrent)
-
-> [Part 3: *arr](/blog/docker-*arr)
-
-> [Part 4](/blog/docker-plex)
-
-> [Part 5](/blog/docker-overseer).
+> [Part 2: QBittorrent](/blog/docker-torrent)
+>
+> [Part 3: *arr Stack](/blog/docker-*arr)
+>
+> [Part 4: Plex](/blog/docker-plex)
+>
+> [Part 5: Overseer](/blog/docker-overseer).
 
 ## Use cases
 1. Centralized VPN client that other containers can use. This allows multiple applications to share the same VPN connection.
@@ -45,7 +46,7 @@ services:
       - /dev/net/tun:/dev/net/tun
     ports:
       - "8888:8888/tcp"                         # Gluetun Local Network HTTP proxy
-      - ${GLUETUN_CONTROL_PORT:?err}:${GLUETUN_CONTROL_PORT:?err} # Gluetun Status Port
+      - "${GLUETUN_CONTROL_PORT:?err}:${GLUETUN_CONTROL_PORT:?err}" # Gluetun Status Port
     volumes:
       - ${FOLDER_FOR_DATA:?err}/gluetun:/gluetun
       - ${FOLDER_FOR_DATA:?err}/gluetun/temp:/tmp/gluetun

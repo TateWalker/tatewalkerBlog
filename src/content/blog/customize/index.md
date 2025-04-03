@@ -6,6 +6,7 @@ tags:
   - Waline
   - Netlify
   - Supabase
+draft: true
 heroImage: { src: './thumbnail.jpg', color: '#64574D' }
 language: 'English'
 ---

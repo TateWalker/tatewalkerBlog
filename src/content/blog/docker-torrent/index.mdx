@@ -1,0 +1,188 @@
+---
+title: QBittorrent with Gluetun
+description: 'Set up QBittorrent with Gluetun for a secure torrenting experience.'
+publishDate: 2025-04-03 01:10:15
+tags: 
+    - docker
+    - privacy
+    - media server
+language: 'English'
+heroImage: { src: './qbittorrent-hero.jpg', color: '#2E2E2E' }
+---
+
+import { Aside } from 'astro-pure/user'
+import { Image } from 'astro:assets';
+import whatismyip from './whatismyip.jpg';
+import whatismyipresult from './whatismyipresult.jpg';
+import qbittorrentconnection from './qbittorrent-connection.jpg';
+import networkinterface from './networkinterface.jpg';
+
+Welcome to part 2 of our series on setting up an automated media server using Docker. In this part, we'll be setting up QBittorrent, a popular torrent client, and configuring it to work with Gluetun, our VPN container from part 1.
+<Aside>This is Part 2 of a series on an automated media server. Check out the other parts: </Aside>
+> [Part 1: Docker VPNs with Gluetun](/blog/docker-vpn)
+>
+> [Part 3: *arr Stack](/blog/docker-*arr)
+>
+> [Part 4: Plex](/blog/docker-plex)
+>
+> [Part 5: Overseer](/blog/docker-overseer).
+
+<Aside type='caution' title='Warning'>
+  The information in this article is for educational purposes only. Always use a VPN and follow the laws of your country when torrenting. I am not responsible for any legal issues that may arise from your use of this information.
+</Aside>
+
+## What is Torrenting?
+Torrenting is a method of file sharing that allows users to download and upload files in a decentralized manner. Instead of downloading a file from a single server, torrenting breaks the file into smaller pieces and downloads them from multiple sources simultaneously. This makes it faster, more efficient, and more resistant to takedowns or censorship.
+
+## Why Use a VPN for Torrenting?
+Using a VPN (Virtual Private Network) while torrenting is essential for protecting your privacy and security. A VPN encrypts your internet traffic, making it difficult for anyone to monitor your online activities. This is especially important when torrenting, as your IP address can be exposed to other users in the swarm, potentially leading to legal issues or unwanted attention from copyright holders.
+
+## Objectives
+1. Install QBittorrent in a Docker container
+2. Route all QBittorrent traffic through the Gluetun VPN container
+3. Test IP address
+4. Setup automated port forwarding updates
+
+## Installing QBittorrent
+As in [Part 1](/blog/docker-vpn), we'll be using Docker Compose to set up QBittorrent. Open your existing `docker-compose.yml` file and add the following code:
+
+```yaml
+services:
+  gluetun:
+    ports:
+      - "8888:8888/tcp"                         # Gluetun Local Network HTTP proxy
+      - "${GLUETUN_CONTROL_PORT:?err}:${GLUETUN_CONTROL_PORT:?err}" # Gluetun Status Port
+      - "${WEBUI_PORT_QBITTORRENT:?err}:${WEBUI_PORT_QBITTORRENT:?err}" # WebUI Portal: qBittorrent # [!code ++]
+
+## QBITTORRENT ## # [!code ++]
+  qbittorrent: # [!code ++]
+    image: lscr.io/linuxserver/qbittorrent:latest # [!code ++]
+    container_name: qbittorrent # [!code ++]
+    restart: unless-stopped # [!code ++]
+    volumes: # [!code ++]
+      - ${FOLDER_FOR_DATA:?err}/qbittorrent:/config # [!code ++]
+      - ${FOLDER_FOR_MEDIA:?err}:/data # [!code ++]
+    environment: # [!code ++]
+      - TZ=${TIMEZONE:?err} # [!code ++]
+      - WEBUI_PORT=${WEBUI_PORT_QBITTORRENT:?err} # [!code ++]
+      - PUID=1000 # [!code ++]
+      - PGID=1000 # [!code ++]
+    # [!code ++]
+## Do Not Change Network for qBittorrent # [!code ++]
+## qBittorrent MUST always use a VPN / Secure Internet connection # [!code ++]
+    network_mode: "service:gluetun" # [!code ++]
+```
+Let's break down the new parts of this configuration:
+
+#### ports
+
+We added a variable for the Qbittorrent Web UI port. We'll fill this in in our `.env` file later
+
+#### qbittorrent
+
+* We added the latest image from [linuxserver.io](https://lscr.https://docs.linuxserver.io/images/docker-qbittorrent/). They maintain Docker images of popular software.
+* Under `volumes`, we added a new volume mount for a media folder. This will be where we store all of our torrents and downloaded files.
+* We set the port we exposed in the Gluetun container to the internal WebUI port and passed in user and group IDs 1000. This will make sure the container has the correct file permissions when it reads and writes.
+* The `network-mode` of the container is set to `service:gluetun` this lets the Gluetun container handle all traffic to and from qBittorrent
+
+### Updating Our .env File
+
+Before we start our containers, we'll need to add a few environment variables to our `.env` file. In the same directory as your `docker-compose.yml`, open your `.env` file and add the following:
+
+```bash
+TIMEZONE=America/Chicago
+FOLDER_FOR_MEDIA=/media/plex  # The directory on your host machine to store torrents and media # [!code ++]
+FOLDER_FOR_DATA=./data
+
+# Gluetun
+...
+
+# Ports // [!code ++]
+WEBUI_PORT_QBITTORRENT=8120 # [!code ++]
+
+# QBittorrent # [!code ++]
+QBITTORRENT_USER=admin # Change this to whatever you want your login to be # [!code ++]
+QBITTORRENT_PASSWORD=password # Change this to whatever you want your login to be # [!code ++]
+```
+
+Now that we've got our `.env` file configured, we should be able to run our `docker-compose.yml` file. In the same directory, run:
+
+```bash
+docker compose up -d
+```
+
+You should see your Gluetun container rebuilding (we added new env variables to it) and the QBittorrent container pulling from linuxserver.io. When it's finished, open a web browser to your Docker machine's IP (or `localhost` if you're on the same machine), port 8120.
+
+Upon new installation, the default username and password are shared in the logs. You can view the logs by running:
+
+```bash
+docker logs -f qbittorrent
+```
+
+Once you have the default credentials, you can login on the WebUI and change the password to what you defined in your `.env` file. This can be done through the settings button (gear) and choosing the WebUI tab.
+
+## Automatic Port Updates
+If you see a fire symbol at the bottom of your QBittorrent screen, it means you're firewalled by your VPN provider and need to connect via the correct port. This happens from time to time as the port your VPN provider exposes changes.
+
+To automatically update the port, we'll use a container called `gluetun-qbittorrent-port-manager`. The Github can be found [here](https://github.com/SnoringDragon/gluetun-qbittorrent-port-manager) if you'd like to check out the code.
+
+### Updating docker-compose.yml
+Add the following container to your `docker-compose.yml` file:
+```yaml
+services:
+  ...
+## QBITTORRENT PORT MANAGER ## # [!code ++]
+
+  qbittorrent-port-manager: # [!code ++]
+    image: snoringdragon/gluetun-qbittorrent-port-manager:latest # [!code ++]
+    container_name: qbittorrent-port-manager # [!code ++]
+    restart: unless-stopped # [!code ++]
+    volumes: # [!code ++]
+      - ${FOLDER_FOR_DATA:?err}/gluetun/temp:/tmp/gluetun # set this as the same you used for tmp on the gluetun container # [!code ++]
+    environment: # [!code ++]
+      - QBITTORRENT_SERVER: localhost # [!code ++]
+      - QBITTORRENT_PORT: ${WEBUI_PORT_QBITTORRENT:?err} # [!code ++]
+      - QBITTORRENT_USER: ${QBITTORRENT_USER} # [!code ++]
+      - QBITTORRENT_PASSWORD: ${QBITTORRENT_PASSWORD} # [!code ++]
+      - PORT_FORWARDED: /tmp/gluetun/forwarded_port # [!code ++]
+      - HTTP_S: http # [!code ++]
+    network_mode: "service:gluetun" # [!code ++]
+```
+
+Run:
+```bash
+docker compose up -d
+```
+Once the container is up, go back to the QBittorrent UI and you should see the fire symbol replaced by a green globe. This means traffic is flowing to QBittorrent and your port is open.
+
+You can manually check that the port is correct by going to the settings menu and choosing the "Connection" tab. The port should be the same as the one in the `forwarded_port` file under `./data/gluetun/temp/`.
+<Image src={qbittorrentconnection} alt="QBittorrent connection" />
+We'll also want to update the network interface to exclusively use `tun0` in the Advanced tab. This will allow us to reconnect to the VPN if the connection resets.
+<Image src={networkinterface} alt="Network interface" />
+
+## Testing Torrenting IP
+
+To test that our VPN is correctly routing our QBittorrent traffic, we can download a test torrent and check our IP from the web. We'll use [whatismyip.net](https://www.whatismyip.net/tools/torrent-ip-checker/index.php) for this.
+
+<Image src={whatismyip} alt="What is my IP" />
+
+1. Right click the "Torrent Magnet Link" button and copy link address
+2. Open QBittorrent and click the "Add Torrent Link" button (it looks like a link in the top left corner)
+3. Paste the link you copied and click "Download"
+4. Return to WhatismyIP.net and click "Update data" if nothing is in the box.
+
+If everything is working correctly, you should see the IP address of your VPN provider.
+
+<Image src={whatismyipresult} alt="What is my IP result" />
+
+If you see your real IP address, something is wrong. Consult the logs of your Gluetun container to see if there are any errors. You can view the logs by running:
+
+```bash
+docker logs -f gluetun
+```
+**Do not continue until you see the correct IP address on the tool.**
+
+You're free to delete the test torrent from your QBittorrent client. It was just to test the IP address and didn't download anything to your computer.
+
+## Conclusion
+Congratulations! You've successfully set up QBittorrent with Gluetun. You can now download torrents securely and privately. In the [next part](/blog/docker-arr) of this series, we'll be setting up the *arr stack to automate your media downloads.
