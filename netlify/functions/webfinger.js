@@ -1,6 +1,6 @@
 exports.handler = async (event) => {
   const webfingerResponse = {
-    subject: "acct:@tatewalker.com",
+    subject: "acct:tailscale@tatewalker.com",
     links: [
       {
         "rel": "http://openid.net/specs/connect/1.0/issuer",
