@@ -5,3 +5,8 @@
   for = "/.well-known/webfinger"
   [headers.values]
     Content-Type = "application/jrd+json"
+
+[[redirects]]
+  from = "/.well-known/webfinger"
+  to = "/.netlify/functions/webfinger"
+  status = 200
