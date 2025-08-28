@@ -4,7 +4,7 @@ exports.handler = async (event) => {
     links: [
       {
         "rel": "http://openid.net/specs/connect/1.0/issuer",
-        "href": "https://auths2wcjk6tlkg5f8ga.tatewalker.com/o/tailscale"
+        "href": "https://auths2wcjk6tlkg5f8ga.tatewalker.com/o/application/tailscale/"
       }
     ]
   };
